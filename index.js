@@ -1,126 +1,73 @@
-// server.js
-// where your node app starts
-// init project
-var express = require("express");
-var app = express();
+const express = require('express')
+const app = express()
+const cors = require('cors')
+require('dotenv').config()
 
-//-------------URL Shortener Microservice start
 const bodyParser = require('body-parser');
-const dns = require('dns');
+const uuid = require('uuid');
+const { check, validationResult } = require('express-validator');
 const fs = require('fs');
-//------------URL Shortener Microservice end
 
-// enable CORS (https://en.wikipedia.org/wiki/Cross-origin_resource_sharing)
-// so that your API is remotely testable by FCC
-var cors = require("cors");
-// Use optionsSuccessStatus instead of optionSuccessStatus
-app.use(cors({ optionsSuccessStatus: 200 })); // some legacy browsers choke on 204
-//------------URL Shortener Microservice start
-app.use(bodyParser.urlencoded({extended: false}));
-app.use(bodyParser.json());
-//------------URL Shortener Microservice end
-// http://expressjs.com/en/starter/static-files.html
-app.use(express.static("public"));
+app.use(cors())
+/* ---------------Exercise Tracker start--------------*/
+app.use(bodyParser.urlencoded({extended: false}))
+app.use(bodyParser.json())
+/* ---------------Exercise Tracker end--------------*/
 
-// http://expressjs.com/en/starter/basic-routing.html
-app.get("/", function (req, res) {
-  res.sendFile(__dirname + "/views/index.html");
-});
-
-// your first API endpoint...
-app.get("/api/hello", function (req, res) {
-  res.json({ greeting: "hello API" }); // Removed xxx
-});
-
-// Combined Timestamp endpoint
-app.get("/api/:date?", (req, res) => {
-  // Use /api/:date? as per FCC examples
-  const dateString = req.params.date;
-  let date;
-
-  // 1. Handle empty date parameter -> current time
-  if (!dateString) {
-    date = new Date();
-  } else {
-    // 2. Check if the input is potentially a Unix timestamp (all digits)
-    // Use test() method of regex which returns boolean
-    if (/^\d+$/.test(dateString)) {
-      // Use parseInt with radix 10
-      const timestamp = parseInt(dateString, 10);
-      date = new Date(timestamp);
-    } else {
-      // 3. Otherwise, try parsing as a date string
-      date = new Date(dateString);
-    }
-  }
-
-  // 4. Check if the resulting date is valid
-  // Use isNaN on getTime() result
-  if (isNaN(date.getTime())) {
-    // 5. If invalid, return the error JSON
-    res.json({ error: "Invalid Date" });
-  } else {
-    // Inside the 'else' block for a valid date:
-    const unixTime = date.getTime();
-    const utcTime = date.toUTCString();
-    console.log(`Sending response for input: ${req.params.date}`);
-    console.log("Unix Timestamp:", unixTime);
-    console.log("Type of Unix Timestamp:", typeof unixTime); // <-- Check this log output
-    console.log("UTC String:", utcTime);
-
-    res.json({
-      unix: unixTime,
-      utc: utcTime,
-    });
-  }
-});
-
-//Request Header Parser Microservice
-app.get('/api/whoami',(req,res) =>{
-  res.json({
-    ipaddress: req.socket.remoteAddress, 
-    language: req.headers['accept-language'], 
-    software: req.headers['user-agent']
-  });
+app.use(express.static('public'))
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/views/index.html')
 });
 
 /*-----------------------------------------------------------------------------------------*/
-/*--------------------------------------URL Shortener Microservice start-------------------------------------------*/
+/*---------------------------------------Exercise Tracker start-------------------------------------------*/
 /*-----------------------------------------------------------------------------------------*/
 
-//1.function to manage local file storage (File data.json)
 function dataManagement(action, input) {
   let filePath = './public/data.json';
-  //check if file exist -> create new file if not exist
-  if (!fs.existsSync(filePath)) {
-    fs.closeSync(fs.openSync(filePath, 'w'));
-  }
-
-  //read file data.json
-  let file = fs.readFileSync(filePath);
   
-  //screnario for save input into data
-  if (action == 'save data' && input != null) {
-      //check if file is empty
-    if (file.length == 0) {
-      //add new data to json file
-      fs.writeFileSync(filePath, JSON.stringify([input], null, 2));
-    } else {
-      //append input to data.json file
-      let data = JSON.parse(file.toString());
-      //check if input.original_url already exist
-      let inputExist = [];
-      inputExist  = data.map(d => d.original_url);
-      let check_input = inputExist.includes(input.original_url);     
-      if (check_input === false) {
-        //add input element to existing data json object
-        data.push(input);
-        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-      }
-    }
-  }
+  //create file if nor exist, then read the file
+  if (!fs.existsSync(filePath)) { fs.closeSync(fs.openSync(filePath, 'w')); }
+  let file = fs.readFileSync(filePath);
 
-  //screnario for load the data
+  //screnario for save input into data -> append input to data.json file
+  if (action == 'save data' && input != null) {
+    
+    //if file is empty
+    if (file.length == 0) {
+      //add new user to data.json
+      return fs.writeFileSync(filePath, JSON.stringify([input], null, 2));
+    }
+    //if file not empty
+    else if (file.length > 0) {
+      let Alldata    = JSON.parse(file.toString());
+      let count_data = Alldata.length;
+
+      //check existing user id (check existing username already done on genererate user id for new user)
+      let id_Exist = Alldata.map(d => d._id); let check_id = id_Exist.includes(input._id);
+      
+      //if user id not exist -> add new user to data.json
+      if ( check_id == false ) {
+        // console.log({action : 'input new user'});
+        Alldata.push( input );
+        return fs.writeFileSync(filePath, JSON.stringify( Alldata, null, 2 ) );
+      }
+      
+      //if user id already exist -> update count, and log to existing user id
+      else if ( check_id == true ) {
+        // console.log({action : 'update existing user'});
+        user_index = id_Exist.indexOf(input._id);
+        Alldata.splice(user_index,1, input);
+        return fs.writeFileSync(filePath, JSON.stringify( Alldata, null, 2 ) );
+      }
+      else {
+        // console.log( {action : 'no action'} );
+        return;
+      }
+      
+    } else { return; }
+  }
+  //screnario for load All data
   else if (action == 'load data' && input == null) {
     if (file.length == 0) { return; }
     else {
@@ -130,83 +77,170 @@ function dataManagement(action, input) {
   }
 }
 
-//2.function for random short_url (using Math.random())
-function gen_shorturl() {
-  let all_Data   = dataManagement('load data');
-  // generate random number between 1 to data_length*1000
-  let min = 1; let max = 1000; 
-  if ( all_Data != undefined && all_Data.length > 0 ) { max = all_Data.length*1000 }
-  else { max = 1000; }
-  let short = Math.ceil(Math.random()* (max - min + 1) + min);
-  
-  //get all existing short url
-  if (all_Data === undefined) { return short; }
+
+//Additional function : generate user id
+function gen_id(username) {
+  let Alldata  = dataManagement("load data");
+  let id       = uuid.v4().replace(/-/g, "").slice(0,24);
+  if (Alldata == undefined) { return id; }
   else {
-    //check if short url already exist
-    let shortExist  = all_Data.map(d => d.short_url);
-    let check_short = shortExist.includes(short);
-    if ( check_short ) {gen_shorturl(); } else { return short; }
+    //check existing user id and username
+    let id_Exist    = Alldata.map(d => d._id);
+    let name_Exist  = Alldata.map(d => d.username);
+    let check_id    = id_Exist.includes(id); let check_username = name_Exist.includes(username);
+    let check_input = check_id && check_username
+    
+    if      (check_id    == true  && check_username == false) { gen_id(username); }
+    else if (check_id    == false && check_username == true)  { return; }
+    else if (check_input == false) { return id; }
+    else    { return; }
   }
-  
 }
 
-//3.middleware to handle user url input
-app.post('/api/shorturl', (req,res) => {
-  //Create variable needs
-  let input = '', domain = '', param = '', short = 0;
+//Additional function : load user log as requirement (from, to, and limit)
+function user_log(found_user, from, to, limit) {
+  let check_from = false; let check_to = false; let check_limit = false;
+  if (from)  { check_from  = !isNaN(Date.parse(from)); }
+  if (to)    { check_to    = !isNaN(Date.parse(to));   }
+  if (limit) { check_limit = /^[0-9]+$/.test(limit);   }
   
-  //Post url from user input
-  input = req.body.url;
-  if (input === null || input === '') { 
-    return res.json({ error: 'invalid url' }); 
-  }
+  // console.log( {from : from, to : to, limit : limit } );
+  // console.log( {from : check_from, to : check_to, limit : check_limit } );
   
-  //matches a string with regular expr => return array
-  //url should contains : http:// or https://
-  domain = input.match(/^(?:https?:\/\/)?(?:[^@\/\n]+@)?(?:www\.)?([^:\/?\n]+)/igm);
-  //search a string with regular expr, and replace the string -> delete https://
-  param = domain[0].replace(/^https?:\/\//i, "");
-
-  //Validate the url
-  dns.lookup(param, (err, url_Ip) => {
-    if (err) {
-      //If url is not valid -> respond error
-      console.log(url_Ip);
-      return res.json({ error: 'invalid url' });
-    }
-    else {
-      //If url is valid -> generate short url
-      short = gen_shorturl();
-      dict = {original_url : input, short_url : short};
-      dataManagement("save data", dict);
-      return res.json(dict);
-    }
+  let _id         = found_user._id;
+  let username    = found_user.username;
+  let count       = parseInt(found_user.count);
+  let log_Exist   = found_user.log;
+  let log_format  = log_Exist.map( (l) => {
+      return { description : l.description, duration : parseInt(l.duration), date : l.date }
   });
-});
+  let log_date = []; let log_fin  = [];
 
-//4.middleware to handle existing short url
-app.get('/api/shorturl/:shorturl', (req,res) => {
-  let input    = Number(req.params.shorturl);
-  let all_Data = dataManagement('load data');
+  //create log_format as date requirement
+  if (check_from == false && check_to == false) { 
+    log_date = log_format; 
+  }
+  else if (check_from == true && check_to == false) {
+    log_date = log_format.filter((d) => { return Date.parse(d.date) > Date.parse(from); } );
+  }
+  else if (check_from == false && check_to == true) {
+    log_date = log_format.filter((d) => { return Date.parse(d.date) < Date.parse(to); } );
+  }
+  else if (check_from == true && check_to == true) {
+    log_date = log_format.filter((d) => {
+      return Date.parse(d.date) > Date.parse(from) && Date.parse(d.date) < Date.parse(to);
+    });
+  }
+
+  if (check_limit == true) { log_fin = log_date.slice(0,limit) }
+  else if (check_limit == false) { log_fin = log_date; }
   
-  //check if short url already exist
-  let shortExist  = all_Data.map(d => d.short_url);
-  let check_short = shortExist.includes(input);
-  if (check_short && all_Data != undefined) {
-    data_found = all_Data[shortExist.indexOf(input)];
-    // res.json({data : data_found, short : input, existing : shortExist});
-    res.redirect(data_found.original_url);
+  
+  user_data = { _id : _id, username : username, count : count, log : log_fin };
+  return user_data;
+}
+
+app.post('/api/users',
+  [ check('username', 'username: Path `username` is required').isLength({ min: 1 }) ],
+  (req,res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) { res.json(errors) }
+    else {
+      username = req.body.username; id = gen_id(username);
+      if ( id === undefined ) { 
+        res.json({ action : 'input failed, Username already Exist'}); 
+      } else {
+        user = { username : username, _id : id, count : 0, log : [] };
+        dataManagement('save data', user);
+        return res.json({ username : username, _id : id });
+      }
+    }
   }
+);
+
+app.get('/api/users', (req,res) => {
+  let Alldata = dataManagement("load data");
+  if (Alldata === undefined) { return res.json({data : 'no data'}); }
   else {
-    res.json({data : 'No matching data', short : input, existing : shortExist});
+    //load All data (only id and username)
+    let data = Alldata.map( (d) => { return {username : d.username, _id : d._id} } );
+    return res.json(data);
   }
 });
 
-/*=======================================URL Shortener Microservice end==================================================*/
-// Your first API endpoint
 
-// listen for requests :)
-var listener = app.listen(process.env.PORT || 3000, function () {
-  // Added default port for local testing
-  console.log("Your app is listening on port " + listener.address().port);
+app.post('/api/users/:_id/exercises',
+  [
+    check('description','desc: Path `description` is required').isLength({ min: 1 }),
+    check('duration','duration: Path `duration` is required with valid number')
+      .matches(/^[0-9]+$/)
+      .isLength({ min: 1 }),
+  ],
+  (req,res) => {
+    let id    = req.params._id;
+    let desc  = req.body.description;
+    let dur   = req.body.duration;
+    let date  = req.body.date;
+    
+    Alldata = dataManagement('load data');
+    const errors = validationResult(req);
+    
+    if (!errors.isEmpty()) { res.json(errors) }
+    else if (Alldata === undefined) { return res.json({data : 'no data'}); }
+    else {
+      //find input user id on existing data -> if user is exist then update user's log
+      let id_Exist    = Alldata.map(d => d._id);
+      let found_user  = Alldata[ id_Exist.indexOf( id ) ];
+      
+      if (found_user == undefined) { return res.json({user_id : 'Invalid user id'}); }
+      else {
+        //Validate input date
+        let isValidDate = Date.parse(date);
+        if(isNaN(isValidDate)) { date = new Date().toDateString() } 
+        else { date = new Date(date).toDateString(); }
+
+        //Update user log
+        let username     = found_user.username;
+        let _id          = found_user._id;
+        
+        let count_Exist  = parseInt(found_user.count);
+        let count        = count_Exist += 1;
+
+        let log_Exist    = found_user.log;
+        let log_input    = {description : desc, duration : dur, date : date};
+        let log          = log_Exist.concat(log_input);
+        
+        user = { username : username, _id : _id, count : count, log : log };
+        dataManagement('save data', user);
+        return res.json ({
+           _id : _id, username : username, date : date, 
+           duration: parseInt(dur), description : desc
+        });
+      }
+    }
 });
+
+app.get('/api/users/:_id/logs', (req,res) => {
+  Alldata = dataManagement('load data');
+  let id = req.params._id; let {from, to, limit} = req.query;
+  
+  if (Alldata === undefined) { return res.json({data : 'no data'}); }
+  else {
+    //check if id exist -> load user log
+    let id_Exist     = Alldata.map(d => d._id);
+    let found_user   = Alldata[ id_Exist.indexOf( id ) ];
+    
+    if (found_user == undefined) { return res.json({user_id : 'Invalid user id'}); }
+    else {
+      user_data = user_log(found_user, from, to, limit);
+      return res.json(user_data);
+    }
+  }
+  
+});
+
+/*====================================Exercise Tracker end=====================================================*/
+
+const listener = app.listen(process.env.PORT || 3000, () => {
+  console.log('Your app is listening on port ' + listener.address().port)
+})
