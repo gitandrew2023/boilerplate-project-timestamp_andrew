@@ -66,6 +66,15 @@ app.get("/api/:date?", (req, res) => {
   }
 });
 
+//Request Header Parser Microservice
+app.get('/api/whoami',(req,res) =>{
+  res.json({
+    ipaddress: req.socket.remoteAddress, 
+    language: req.headers['accept-language'], 
+    software: req.headers['user-agent']
+  });
+});
+
 // listen for requests :)
 var listener = app.listen(process.env.PORT || 3000, function () {
   // Added default port for local testing
